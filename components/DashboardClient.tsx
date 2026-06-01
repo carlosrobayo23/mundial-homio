@@ -362,7 +362,6 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                         <span style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>{entry.name}</span>
                         {isMe && <span style={{ fontSize: '10px', color: '#00e87a', background: 'rgba(0,232,122,0.1)', padding: '2px 8px', borderRadius: '100px', letterSpacing: '1px' }}>TU</span>}
                       </div>
-                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginTop: '1px' }}>{entry.email}</div>
                       <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginTop: '1px' }}>
                         {entry.correct_predictions} aciertos · {entry.total_predictions} predicciones
                         {entry.bonus_points > 0 && ` · +${entry.bonus_points} bonus`}
