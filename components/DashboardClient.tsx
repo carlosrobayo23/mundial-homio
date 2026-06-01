@@ -258,7 +258,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
               }}>
                 <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔒</div>
                 <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff', marginBottom: '8px' }}>Pago pendiente</div>
-                <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', marginBottom: '16px' }}>Completa tu inscripción de $10 USD para desbloquear las predicciones.</div>
+                <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', marginBottom: '16px' }}>Completa tu inscripción (10 USD, 14 CAD o 36.000 COP) para desbloquear las predicciones.</div>
                 <button onClick={() => setTab('payment')} style={{
                   background: '#ff6b35', border: 'none', borderRadius: '10px', padding: '12px 24px',
                   color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
@@ -517,7 +517,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
               <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.35)' }}>
                 {participant?.has_paid
                   ? 'Tu pago ha sido confirmado. Ya puedes hacer tus predicciones.'
-                  : 'Realiza tu pago de $10 USD por cualquiera de los siguientes métodos y tu acceso se activará en menos de 24 horas.'}
+                  : 'Realiza tu pago de 10 USD (14 CAD o 36.000 COP) por cualquiera de los siguientes métodos y tu acceso se activará en menos de 24 horas.'}
               </p>
             </div>
 
@@ -531,10 +531,17 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {/* Monto */}
                 <div style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: '14px', padding: '24px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '2px', marginBottom: '8px' }}>MONTO DE INSCRIPCIÓN</div>
-                  <div className="font-display" style={{ fontSize: '48px', color: '#00e87a', letterSpacing: '2px' }}>$10 USD</div>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginTop: '8px' }}>
-                    80% va al premio · 20% cubre gestión y hosting
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '2px', marginBottom: '12px' }}>MONTO DE INSCRIPCIÓN</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '14px' }}>
+                    {[{ a: '10', c: 'USD' }, { a: '14', c: 'CAD' }, { a: '36.000', c: 'COP' }].map((x, i) => (
+                      <div key={i} style={{ minWidth: '80px' }}>
+                        <div className="font-display" style={{ fontSize: isMobile ? '26px' : '34px', color: '#00e87a', letterSpacing: '1px' }}>{x.a}</div>
+                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '2px' }}>{x.c}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginTop: '14px' }}>
+                    Paga en una sola moneda · 80% va al premio · 20% cubre gestión y hosting
                   </div>
                 </div>
 
@@ -543,18 +550,21 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                   {
                     method: 'Interac (Canada)',
                     flag: '🇨🇦',
+                    amount: '14 CAD',
                     detail: 'carlosrobayo23@gmail.com',
                     note: 'Autodeposit activado, no requiere contraseña.',
                   },
                   {
                     method: 'Zelle (USA)',
                     flag: '🇺🇸',
+                    amount: '10 USD',
                     detail: 'carlosrobayo23@gmail.com',
                     note: 'Envía directamente a este correo.',
                   },
                   {
                     method: 'Bancolombia (Colombia)',
                     flag: '🇨🇴',
+                    amount: '36.000 COP',
                     detail: 'Llave: @robayo7005',
                     note: 'Transferencia o depósito a la llave de Bancolombia.',
                   },
@@ -563,6 +573,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                       <span style={{ fontSize: '24px' }}>{m.flag}</span>
                       <span style={{ fontSize: '15px', fontWeight: 600, color: '#fff' }}>{m.method}</span>
+                      <span className="font-display" style={{ marginLeft: 'auto', fontSize: '15px', color: '#00e87a', letterSpacing: '1px' }}>{m.amount}</span>
                     </div>
                     <div style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.12)', borderRadius: '8px', padding: '10px 14px', marginBottom: '8px', fontFamily: 'monospace', fontSize: '15px', color: '#00e87a' }}>
                       {m.detail}
