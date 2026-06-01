@@ -26,8 +26,8 @@ function abbreviate(name: string): string {
 
 function formatTime(dateStr: string) {
   const date = new Date(dateStr)
-  const day = date.toLocaleDateString('es', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Mexico_City' })
-  const time = date.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Mexico_City' })
+  const day = date.toLocaleDateString('es', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Bogota' })
+  const time = date.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Bogota' })
   return { day, time }
 }
 
@@ -35,7 +35,7 @@ function groupByDay(matches: Match[]) {
   const sorted = [...matches].sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime())
   const groups: Record<string, Match[]> = {}
   sorted.forEach(m => {
-    const day = new Date(m.match_date).toLocaleDateString('es', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' })
+    const day = new Date(m.match_date).toLocaleDateString('es', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Bogota' })
     if (!groups[day]) groups[day] = []
     groups[day].push(m)
   })
@@ -232,7 +232,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                     {day.toUpperCase()}
                   </span>
                   <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.06)' }} />
-                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)' }}>Hora Mexico (CDT)</span>
+                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)' }}>Hora Colombia (COT)</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {dayMatches.map(match => {
@@ -260,7 +260,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                             ) : (
                               <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '6px', padding: '4px 10px', display: 'inline-block' }}>
                                 <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{time}</div>
-                                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', letterSpacing: '1px' }}>CDT</div>
+                                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', letterSpacing: '1px' }}>COT</div>
                               </div>
                             )}
                           </div>
