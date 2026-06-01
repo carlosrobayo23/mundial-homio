@@ -31,12 +31,24 @@ export default async function HomePage() {
     myPredictions = data || []
   }
 
+  let allParticipants: any[] = []
+  if (participant?.is_admin) {
+    const { data } = await admin
+      .schema('homio')
+      .from('participants')
+      .select('*')
+      .order('has_paid', { ascending: true })
+      .order('created_at', { ascending: true })
+    allParticipants = data || []
+  }
+
   return (
     <DashboardClient
       participant={participant}
       leaderboard={leaderboard || []}
       matches={matches || []}
       myPredictions={myPredictions}
+      allParticipants={allParticipants}
     />
   )
 }

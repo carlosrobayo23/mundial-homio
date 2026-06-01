@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { Participant, LeaderboardEntry, Match, PredictionRow, Prediction } from '@/lib/types'
 import { createClient } from '@/lib/supabase'
+import { setParticipantPaid } from '@/app/actions'
 import Flag from '@/components/Flag'
 
 interface Props {
@@ -9,9 +10,10 @@ interface Props {
   leaderboard: LeaderboardEntry[]
   matches: Match[]
   myPredictions: PredictionRow[]
+  allParticipants: Participant[]
 }
 
-type Tab = 'picks' | 'standings' | 'results' | 'payment'
+type Tab = 'picks' | 'standings' | 'results' | 'payment' | 'admin'
 
 function abbreviate(name: string): string {
   const map: Record<string, string> = {
@@ -40,12 +42,14 @@ function groupByDay(matches: Match[]) {
   return groups
 }
 
-export default function DashboardClient({ participant, leaderboard, matches, myPredictions }: Props) {
+export default function DashboardClient({ participant, leaderboard, matches, myPredictions, allParticipants = [] }: Props) {
   const [tab, setTab] = useState<Tab>(participant?.has_paid ? 'picks' : 'payment')
   const [predictions, setPredictions] = useState<Record<string, Prediction | null>>(
     Object.fromEntries(myPredictions.map(p => [p.match_id, p.prediction]))
   )
   const [saving, setSaving] = useState<string | null>(null)
+  const [participants, setParticipants] = useState<Participant[]>(allParticipants)
+  const [savingPaid, setSavingPaid] = useState<string | null>(null)
   const supabase = createClient()
 
   async function togglePrediction(matchId: string, value: Prediction) {
@@ -64,6 +68,20 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
       }, { onConflict: 'participant_id,match_id' })
     }
     setSaving(null)
+  }
+
+  async function togglePaid(p: Participant) {
+    setSavingPaid(p.id)
+    const newPaid = !p.has_paid
+    const res = await setParticipantPaid(p.id, newPaid)
+    if (res.ok) {
+      setParticipants(prev => prev.map(x => x.id === p.id
+        ? { ...x, has_paid: newPaid, paid_at: newPaid ? new Date().toISOString() : undefined }
+        : x))
+    } else {
+      alert(res.error || 'Error al actualizar el pago')
+    }
+    setSavingPaid(null)
   }
 
   async function handleLogout() {
@@ -93,6 +111,10 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
     if (phase === 'final') return 'FINAL'
     return phase
   }
+
+  const paidCount = participants.filter(p => p.has_paid).length
+  const pendingCount = participants.filter(p => !p.has_paid).length
+  const sortedParticipants = [...participants].sort((a, b) => Number(a.has_paid) - Number(b.has_paid))
 
   return (
     <div style={{ minHeight: '100vh', background: '#080810', fontFamily: "'DM Sans', sans-serif" }}>
@@ -152,6 +174,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
             { key: 'standings', label: 'Clasificacion', icon: '🏆' },
             { key: 'results', label: 'Resultados', icon: '📊' },
             { key: 'payment', label: 'Pagar', icon: '💳' },
+            ...(participant?.is_admin ? [{ key: 'admin', label: 'Admin', icon: '🛠️' }] : []),
           ] as { key: Tab; label: string; icon: string }[]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               padding: '14px 18px', background: 'transparent', border: 'none',
@@ -166,6 +189,9 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
               {t.icon} {t.label}
               {t.key === 'payment' && !participant?.has_paid && (
                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ff6b35', position: 'absolute', top: '10px', right: '6px' }} />
+              )}
+              {t.key === 'admin' && pendingCount > 0 && (
+                <span style={{ fontSize: '10px', fontWeight: 700, color: '#ff6b35', background: 'rgba(255,107,53,0.12)', borderRadius: '100px', padding: '1px 7px', marginLeft: '2px' }}>{pendingCount}</span>
               )}
             </button>
           ))}
@@ -448,6 +474,85 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                     Una vez que realices el pago, envia el comprobante por WhatsApp a Carlos Robayo. Tu acceso se activa en menos de 24 horas.
                   </div>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ADMIN TAB */}
+        {tab === 'admin' && participant?.is_admin && (
+          <div>
+            <div style={{ marginBottom: '24px' }}>
+              <h2 className="font-display" style={{ fontSize: '36px', letterSpacing: '2px', color: '#fff', marginBottom: '6px' }}>Admin</h2>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.35)' }}>
+                Marca a cada participante como pagado cuando recibas su comprobante. Los pendientes aparecen primero.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Pagados</div>
+                <div className="font-display" style={{ fontSize: '22px', color: '#00e87a' }}>{paidCount}</div>
+              </div>
+              <div style={{ background: 'rgba(255,107,53,0.06)', border: '1px solid rgba(255,107,53,0.15)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Pendientes</div>
+                <div className="font-display" style={{ fontSize: '22px', color: '#ff6b35' }}>{pendingCount}</div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Total</div>
+                <div className="font-display" style={{ fontSize: '22px', color: '#fff' }}>{participants.length}</div>
+              </div>
+            </div>
+
+            {participants.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '64px', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>
+                Aun no hay participantes registrados.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {sortedParticipants.map(p => (
+                  <div key={p.id} style={{
+                    background: p.has_paid ? 'rgba(0,232,122,0.04)' : 'rgba(255,107,53,0.04)',
+                    border: p.has_paid ? '1px solid rgba(0,232,122,0.12)' : '1px solid rgba(255,107,53,0.15)',
+                    borderRadius: '12px', padding: '14px 20px',
+                    display: 'flex', alignItems: 'center', gap: '14px',
+                  }}>
+                    {p.avatar_url ? (
+                      <img src={p.avatar_url} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
+                    ) : (
+                      <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>
+                        {p.name?.[0]?.toUpperCase()}
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>{p.name}</span>
+                        {p.is_admin && <span style={{ fontSize: '10px', color: '#00e87a', background: 'rgba(0,232,122,0.1)', padding: '2px 8px', borderRadius: '100px', letterSpacing: '1px' }}>ADMIN</span>}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>{p.email}</div>
+                    </div>
+                    <div style={{
+                      fontSize: '10px', fontWeight: 700, letterSpacing: '1px', padding: '4px 10px', borderRadius: '100px',
+                      color: p.has_paid ? '#00e87a' : '#ff6b35',
+                      background: p.has_paid ? 'rgba(0,232,122,0.1)' : 'rgba(255,107,53,0.1)',
+                    }}>
+                      {p.has_paid ? 'PAGADO' : 'PENDIENTE'}
+                    </div>
+                    <button
+                      onClick={() => togglePaid(p)}
+                      disabled={savingPaid === p.id}
+                      style={{
+                        padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
+                        cursor: savingPaid === p.id ? 'default' : 'pointer', fontFamily: "'DM Sans', sans-serif",
+                        border: 'none', whiteSpace: 'nowrap', minWidth: '130px',
+                        background: p.has_paid ? 'rgba(255,255,255,0.06)' : '#00e87a',
+                        color: p.has_paid ? 'rgba(255,255,255,0.5)' : '#000',
+                        opacity: savingPaid === p.id ? 0.5 : 1,
+                      }}>
+                      {savingPaid === p.id ? '...' : p.has_paid ? 'Revertir' : 'Marcar pagado'}
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
