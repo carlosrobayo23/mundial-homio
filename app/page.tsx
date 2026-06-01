@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import DashboardClient from '@/components/DashboardClient'
 
+export const dynamic = 'force-dynamic'
+
 export default async function HomePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
