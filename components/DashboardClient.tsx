@@ -549,21 +549,21 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                 {[
                   {
                     method: 'Interac (Canada)',
-                    flag: '🇨🇦',
+                    code: 'ca',
                     amount: '14 CAD',
                     detail: 'carlosrobayo23@gmail.com',
                     note: 'Autodeposit activado, no requiere contraseña.',
                   },
                   {
                     method: 'Zelle (USA)',
-                    flag: '🇺🇸',
+                    code: 'us',
                     amount: '10 USD',
                     detail: 'carlosrobayo23@gmail.com',
                     note: 'Envía directamente a este correo.',
                   },
                   {
                     method: 'Bancolombia (Colombia)',
-                    flag: '🇨🇴',
+                    code: 'co',
                     amount: '36.000 COP',
                     detail: 'Llave: @robayo7005',
                     note: 'Transferencia o depósito a la llave de Bancolombia.',
@@ -571,7 +571,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                 ].map((m, i) => (
                   <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px 24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '24px' }}>{m.flag}</span>
+                      <Flag code={m.code} size={24} />
                       <span style={{ fontSize: '15px', fontWeight: 600, color: '#fff' }}>{m.method}</span>
                       <span className="font-display" style={{ marginLeft: 'auto', fontSize: '15px', color: '#00e87a', letterSpacing: '1px' }}>{m.amount}</span>
                     </div>
