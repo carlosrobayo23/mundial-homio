@@ -15,13 +15,40 @@ interface Props {
 
 type Tab = 'picks' | 'standings' | 'results' | 'payment' | 'admin'
 
-function abbreviate(name: string): string {
-  const map: Record<string, string> = {
-    'South Africa': 'S. Africa', 'South Korea': 'S. Korea', 'United States': 'USA',
-    'Bosnia and Herzegovina': 'Bosnia', 'DR Congo': 'DR Congo', 'Cape Verde': 'C. Verde',
-    'New Zealand': 'NZ', 'Saudi Arabia': 'S. Arabia', 'Ivory Coast': 'I. Coast',
-  }
-  return map[name] || (name.length > 8 ? name.split(' ')[0] : name)
+const TEAM_ES: Record<string, string> = {
+  'Algeria': 'Argelia', 'Argentina': 'Argentina', 'Australia': 'Australia', 'Austria': 'Austria',
+  'Belgium': 'Bélgica', 'Bosnia and Herzegovina': 'Bosnia y Herzegovina', 'Brazil': 'Brasil',
+  'Canada': 'Canadá', 'Cape Verde': 'Cabo Verde', 'Colombia': 'Colombia', 'Croatia': 'Croacia',
+  'Curacao': 'Curazao', 'Czechia': 'Chequia', 'DR Congo': 'RD Congo', 'Ecuador': 'Ecuador',
+  'Egypt': 'Egipto', 'England': 'Inglaterra', 'France': 'Francia', 'Germany': 'Alemania',
+  'Ghana': 'Ghana', 'Haiti': 'Haití', 'Iran': 'Irán', 'Iraq': 'Irak', 'Ivory Coast': 'Costa de Marfil',
+  'Japan': 'Japón', 'Jordan': 'Jordania', 'Mexico': 'México', 'Morocco': 'Marruecos',
+  'Netherlands': 'Países Bajos', 'New Zealand': 'Nueva Zelanda', 'Norway': 'Noruega',
+  'Panama': 'Panamá', 'Paraguay': 'Paraguay', 'Portugal': 'Portugal', 'Qatar': 'Catar',
+  'Saudi Arabia': 'Arabia Saudita', 'Scotland': 'Escocia', 'Senegal': 'Senegal',
+  'South Africa': 'Sudáfrica', 'South Korea': 'Corea del Sur', 'Spain': 'España',
+  'Sweden': 'Suecia', 'Switzerland': 'Suiza', 'Tunisia': 'Túnez', 'Turkiye': 'Turquía',
+  'United States': 'Estados Unidos', 'Uruguay': 'Uruguay', 'Uzbekistan': 'Uzbekistán',
+}
+
+function teamName(en: string): string {
+  if (TEAM_ES[en]) return TEAM_ES[en]
+  if (en.startsWith('W Group ')) return '1° Grupo ' + en.slice(8)
+  if (en.startsWith('RU Group ')) return '2° Grupo ' + en.slice(9)
+  if (en.startsWith('3rd ')) return '3° ' + en.slice(4)
+  if (en.startsWith('TBD')) return 'Por definir'
+  return en
+}
+
+const SHORT_ES: Record<string, string> = {
+  'Estados Unidos': 'EE.UU.', 'Corea del Sur': 'Corea S.', 'Bosnia y Herzegovina': 'Bosnia',
+  'Países Bajos': 'P. Bajos', 'Nueva Zelanda': 'N. Zelanda', 'Arabia Saudita': 'A. Saudita',
+  'Costa de Marfil': 'C. Marfil', 'Cabo Verde': 'C. Verde',
+}
+
+function abbreviate(en: string): string {
+  const es = teamName(en)
+  return SHORT_ES[es] || (es.length > 10 ? es.split(' ')[0] : es)
 }
 
 function formatTime(dateStr: string) {
@@ -171,7 +198,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
         <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex' }}>
           {([
             { key: 'picks', label: 'Mis Predicciones', icon: '✏️' },
-            { key: 'standings', label: 'Clasificacion', icon: '🏆' },
+            { key: 'standings', label: 'Clasificación', icon: '🏆' },
             { key: 'results', label: 'Resultados', icon: '📊' },
             { key: 'payment', label: 'Pagar', icon: '💳' },
             ...(participant?.is_admin ? [{ key: 'admin', label: 'Admin', icon: '🛠️' }] : []),
@@ -207,7 +234,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
               <h2 className="font-display" style={{ fontSize: '36px', letterSpacing: '2px', color: '#fff', marginBottom: '6px' }}>Mis Predicciones</h2>
               <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.35)' }}>
                 {participant?.has_paid
-                  ? 'Selecciona el resultado antes del inicio de cada partido. Haz click de nuevo para quitar tu prediccion.'
+                  ? 'Selecciona el resultado antes del inicio de cada partido. Haz click de nuevo para quitar tu predicción.'
                   : 'Debes completar tu pago para poder hacer predicciones.'}
               </p>
             </div>
@@ -218,7 +245,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
               }}>
                 <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔒</div>
                 <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff', marginBottom: '8px' }}>Pago pendiente</div>
-                <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', marginBottom: '16px' }}>Completa tu inscripcion de $10 USD para desbloquear las predicciones.</div>
+                <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', marginBottom: '16px' }}>Completa tu inscripción de $10 USD para desbloquear las predicciones.</div>
                 <button onClick={() => setTab('payment')} style={{
                   background: '#ff6b35', border: 'none', borderRadius: '10px', padding: '12px 24px',
                   color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
@@ -249,7 +276,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{match.home_team}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{teamName(match.home_team)}</span>
                             <Flag code={match.home_flag_code} size={24} />
                           </div>
                           <div style={{ textAlign: 'center', minWidth: '80px' }}>
@@ -266,7 +293,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                           </div>
                           <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Flag code={match.away_flag_code} size={24} />
-                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{match.away_team}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{teamName(match.away_team)}</span>
                           </div>
                           <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', letterSpacing: '1px', minWidth: '48px', textAlign: 'center' }}>
                             {phaseLabel(match.phase, match.group_name)}
@@ -311,7 +338,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
         {tab === 'standings' && (
           <div>
             <div style={{ marginBottom: '24px' }}>
-              <h2 className="font-display" style={{ fontSize: '36px', letterSpacing: '2px', color: '#fff', marginBottom: '6px' }}>Clasificacion</h2>
+              <h2 className="font-display" style={{ fontSize: '36px', letterSpacing: '2px', color: '#fff', marginBottom: '6px' }}>Clasificación</h2>
               {prizePool > 0 && (
                 <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
                   {[
@@ -334,7 +361,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {leaderboard.filter(e => e.has_paid).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '64px', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>
-                  Aun no hay participantes con pago confirmado.
+                  Aún no hay participantes con pago confirmado.
                 </div>
               ) : leaderboard.filter(e => e.has_paid).map((entry, i) => {
                 const isMe = entry.email === participant?.email
@@ -386,18 +413,18 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
             <h2 className="font-display" style={{ fontSize: '36px', letterSpacing: '2px', color: '#fff', marginBottom: '24px' }}>Resultados</h2>
             {matches.filter(m => m.status === 'finished').length === 0 ? (
               <div style={{ textAlign: 'center', padding: '64px', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>
-                El torneo arranca el 11 de junio. Los resultados apareceran aqui.
+                El torneo arranca el 11 de junio. Los resultados aparecerán aquí.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {matches.filter(m => m.status === 'finished').map(match => (
                   <div key={match.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <Flag code={match.home_flag_code} size={22} />
-                    <span style={{ flex: 1, textAlign: 'right', fontSize: '14px', fontWeight: 600, color: '#fff' }}>{match.home_team}</span>
+                    <span style={{ flex: 1, textAlign: 'right', fontSize: '14px', fontWeight: 600, color: '#fff' }}>{teamName(match.home_team)}</span>
                     <span className="font-display" style={{ fontSize: '22px', color: '#00e87a', minWidth: '64px', textAlign: 'center', letterSpacing: '2px' }}>
                       {match.home_score} - {match.away_score}
                     </span>
-                    <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, color: '#fff' }}>{match.away_team}</span>
+                    <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, color: '#fff' }}>{teamName(match.away_team)}</span>
                     <Flag code={match.away_flag_code} size={22} />
                   </div>
                 ))}
@@ -410,11 +437,11 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
         {tab === 'payment' && (
           <div>
             <div style={{ marginBottom: '32px' }}>
-              <h2 className="font-display" style={{ fontSize: '36px', letterSpacing: '2px', color: '#fff', marginBottom: '6px' }}>Inscripcion</h2>
+              <h2 className="font-display" style={{ fontSize: '36px', letterSpacing: '2px', color: '#fff', marginBottom: '6px' }}>Inscripción</h2>
               <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.35)' }}>
                 {participant?.has_paid
                   ? 'Tu pago ha sido confirmado. Ya puedes hacer tus predicciones.'
-                  : 'Realiza tu pago de $10 USD por cualquiera de los siguientes metodos y tu acceso se activara en menos de 24 horas.'}
+                  : 'Realiza tu pago de $10 USD por cualquiera de los siguientes métodos y tu acceso se activará en menos de 24 horas.'}
               </p>
             </div>
 
@@ -428,10 +455,10 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {/* Monto */}
                 <div style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: '14px', padding: '24px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '2px', marginBottom: '8px' }}>MONTO DE INSCRIPCION</div>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', letterSpacing: '2px', marginBottom: '8px' }}>MONTO DE INSCRIPCIÓN</div>
                   <div className="font-display" style={{ fontSize: '48px', color: '#00e87a', letterSpacing: '2px' }}>$10 USD</div>
                   <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginTop: '8px' }}>
-                    80% va al premio · 20% cubre gestion y hosting
+                    80% va al premio · 20% cubre gestión y hosting
                   </div>
                 </div>
 
@@ -441,19 +468,19 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                     method: 'Interac (Canada)',
                     flag: '🇨🇦',
                     detail: 'carlosrobayo23@gmail.com',
-                    note: 'Autodeposit activado, no requiere contrasena.',
+                    note: 'Autodeposit activado, no requiere contraseña.',
                   },
                   {
                     method: 'Zelle (USA)',
                     flag: '🇺🇸',
                     detail: 'carlosrobayo23@gmail.com',
-                    note: 'Envia directamente a este correo.',
+                    note: 'Envía directamente a este correo.',
                   },
                   {
                     method: 'Bancolombia (Colombia)',
                     flag: '🇨🇴',
                     detail: 'Llave: @robayo7005',
-                    note: 'Transferencia o deposito a la llave de Bancolombia.',
+                    note: 'Transferencia o depósito a la llave de Bancolombia.',
                   },
                 ].map((m, i) => (
                   <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px 24px' }}>
@@ -470,7 +497,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
 
                 <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px 20px' }}>
                   <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
-                    Una vez que realices el pago, envia el comprobante por WhatsApp a Carlos Robayo. Tu acceso se activa en menos de 24 horas.
+                    Una vez que realices el pago, envía el comprobante por WhatsApp a Carlos Robayo. Tu acceso se activa en menos de 24 horas.
                   </div>
                 </div>
               </div>
@@ -505,7 +532,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
 
             {participants.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '64px', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>
-                Aun no hay participantes registrados.
+                Aún no hay participantes registrados.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
