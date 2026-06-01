@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Participant, LeaderboardEntry, Match, PredictionRow, Prediction } from '@/lib/types'
 import { createClient } from '@/lib/supabase'
 import { setParticipantPaid } from '@/app/actions'
@@ -69,6 +69,17 @@ function groupByDay(matches: Match[]) {
   return groups
 }
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+  return isMobile
+}
+
 export default function DashboardClient({ participant, leaderboard, matches, myPredictions, allParticipants = [] }: Props) {
   const [tab, setTab] = useState<Tab>(participant?.has_paid ? 'picks' : 'payment')
   const [predictions, setPredictions] = useState<Record<string, Prediction | null>>(
@@ -78,6 +89,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
   const [participants, setParticipants] = useState<Participant[]>(allParticipants)
   const [savingPaid, setSavingPaid] = useState<string | null>(null)
   const supabase = createClient()
+  const isMobile = useIsMobile()
 
   async function togglePrediction(matchId: string, value: Prediction) {
     if (!participant?.has_paid) { setTab('payment'); return }
@@ -147,7 +159,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
     <div style={{ minHeight: '100vh', background: '#080810', fontFamily: "'DM Sans', sans-serif" }}>
       {/* Header */}
       <header style={{ background: 'rgba(13,13,20,0.97)', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px' }}>
+        <div style={{ maxWidth: '1100px', margin: '0 auto', padding: isMobile ? '0 14px' : '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '24px' }}>⚽</span>
             <div>
@@ -155,7 +167,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
               <div style={{ fontSize: '10px', color: '#00e87a', letterSpacing: '3px' }}>2026</div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '12px' }}>
             {myRank > 0 && participant?.has_paid && (
               <div style={{ background: 'rgba(0,232,122,0.08)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: '8px', padding: '5px 10px', fontSize: '12px', color: '#00e87a' }}>
                 #{myRank} · {myEntry?.total_points || 0} pts
@@ -173,7 +185,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                 {participant?.name?.[0]?.toUpperCase()}
               </div>
             )}
-            <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>{participant?.name}</span>
+            {!isMobile && <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>{participant?.name}</span>}
             <button onClick={handleLogout} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.35)', padding: '5px 10px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
               Salir
             </button>
@@ -194,8 +206,8 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
       )}
 
       {/* Tabs */}
-      <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '0 24px' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex' }}>
+      <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', padding: isMobile ? '0 8px' : '0 24px' }}>
+        <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {([
             { key: 'picks', label: 'Mis Predicciones', icon: '✏️' },
             { key: 'standings', label: 'Clasificación', icon: '🏆' },
@@ -204,7 +216,8 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
             ...(participant?.is_admin ? [{ key: 'admin', label: 'Admin', icon: '🛠️' }] : []),
           ] as { key: Tab; label: string; icon: string }[]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
-              padding: '14px 18px', background: 'transparent', border: 'none',
+              padding: isMobile ? '12px 13px' : '14px 18px', background: 'transparent', border: 'none',
+              whiteSpace: 'nowrap', flexShrink: 0,
               borderBottom: tab === t.key ? '2px solid #00e87a' : '2px solid transparent',
               color: tab === t.key ? '#fff' : 'rgba(255,255,255,0.35)',
               cursor: 'pointer', fontSize: '13px', fontWeight: tab === t.key ? 600 : 400,
@@ -225,7 +238,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
         </div>
       </div>
 
-      <main style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px' }}>
+      <main style={{ maxWidth: '1100px', margin: '0 auto', padding: isMobile ? '20px 14px' : '32px 24px' }}>
 
         {/* PICKS TAB */}
         {tab === 'picks' && (
@@ -267,6 +280,69 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                     const current = predictions[match.id]
                     const confirmed = isTeamConfirmed(match.home_team) && isTeamConfirmed(match.away_team)
                     const { time } = formatTime(match.match_date)
+                    const predictable = !isPast && confirmed && participant?.has_paid
+                    const options = [
+                      { value: '1' as Prediction, label: abbreviate(match.home_team) },
+                      { value: 'X' as Prediction, label: 'Empate' },
+                      { value: '2' as Prediction, label: abbreviate(match.away_team) },
+                    ]
+
+                    if (isMobile) {
+                      return (
+                        <div key={match.id} style={{
+                          background: current ? 'rgba(0,232,122,0.04)' : 'rgba(255,255,255,0.02)',
+                          border: current ? '1px solid rgba(0,232,122,0.15)' : '1px solid rgba(255,255,255,0.06)',
+                          borderRadius: '12px', padding: '12px 14px',
+                          opacity: isPast && match.status !== 'finished' ? 0.5 : 1,
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', letterSpacing: '1px', fontWeight: 700 }}>
+                              {phaseLabel(match.phase, match.group_name)}
+                            </span>
+                            {match.status === 'finished' ? (
+                              <span className="font-display" style={{ fontSize: '16px', color: '#00e87a', letterSpacing: '1px' }}>
+                                {match.home_score} - {match.away_score}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{time} COT</span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: predictable || (isPast && current) || !confirmed || !participant?.has_paid ? '10px' : '0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flex: 1, minWidth: 0 }}>
+                              <Flag code={match.home_flag_code} size={22} />
+                              <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{teamName(match.home_team)}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
+                              <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff', textAlign: 'right' }}>{teamName(match.away_team)}</span>
+                              <Flag code={match.away_flag_code} size={22} />
+                            </div>
+                          </div>
+                          {predictable ? (
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              {options.map(opt => (
+                                <button key={opt.value} onClick={() => togglePrediction(match.id, opt.value)} disabled={saving === match.id} style={{
+                                  flex: 1, padding: '10px 4px',
+                                  background: current === opt.value ? '#00e87a' : 'rgba(255,255,255,0.05)',
+                                  border: current === opt.value ? '1px solid #00e87a' : '1px solid rgba(255,255,255,0.1)',
+                                  borderRadius: '8px', color: current === opt.value ? '#000' : 'rgba(255,255,255,0.5)',
+                                  fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                                  fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                }}>{opt.label}</button>
+                              ))}
+                            </div>
+                          ) : isPast && current ? (
+                            <div style={{ padding: '8px', textAlign: 'center', background: 'rgba(0,232,122,0.08)', border: '1px solid rgba(0,232,122,0.2)', borderRadius: '8px', fontSize: '12px', fontWeight: 700, color: '#00e87a' }}>
+                              Tu pick: {current === '1' ? abbreviate(match.home_team) : current === 'X' ? 'Empate' : abbreviate(match.away_team)}
+                            </div>
+                          ) : !confirmed ? (
+                            <div style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.25)' }}>Por confirmar</div>
+                          ) : !participant?.has_paid ? (
+                            <div style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,107,53,0.6)' }}>🔒 Completa tu pago para predecir</div>
+                          ) : null}
+                        </div>
+                      )
+                    }
+
                     return (
                       <div key={match.id} style={{
                         background: current ? 'rgba(0,232,122,0.04)' : 'rgba(255,255,255,0.02)',
@@ -340,7 +416,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
             <div style={{ marginBottom: '24px' }}>
               <h2 className="font-display" style={{ fontSize: '36px', letterSpacing: '2px', color: '#fff', marginBottom: '6px' }}>Clasificación</h2>
               {prizePool > 0 && (
-                <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '10px' : '16px', marginTop: '16px' }}>
                   {[
                     { place: '1er lugar', pct: 60, color: '#ffd700' },
                     { place: '2do lugar', pct: 30, color: '#c0c0c0' },
@@ -515,7 +591,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '10px' : '16px', marginBottom: '24px' }}>
               <div style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center' }}>
                 <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Pagados</div>
                 <div className="font-display" style={{ fontSize: '22px', color: '#00e87a' }}>{paidCount}</div>
@@ -541,7 +617,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                     background: p.has_paid ? 'rgba(0,232,122,0.04)' : 'rgba(255,107,53,0.04)',
                     border: p.has_paid ? '1px solid rgba(0,232,122,0.12)' : '1px solid rgba(255,107,53,0.15)',
                     borderRadius: '12px', padding: '14px 20px',
-                    display: 'flex', alignItems: 'center', gap: '14px',
+                    display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px', flexWrap: isMobile ? 'wrap' : 'nowrap',
                   }}>
                     {p.avatar_url ? (
                       <img src={p.avatar_url} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
@@ -570,7 +646,8 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                       style={{
                         padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
                         cursor: savingPaid === p.id ? 'default' : 'pointer', fontFamily: "'DM Sans', sans-serif",
-                        border: 'none', whiteSpace: 'nowrap', minWidth: '130px',
+                        border: 'none', whiteSpace: 'nowrap',
+                        ...(isMobile ? { width: '100%', marginTop: '6px' } : { minWidth: '130px' }),
                         background: p.has_paid ? 'rgba(255,255,255,0.06)' : '#00e87a',
                         color: p.has_paid ? 'rgba(255,255,255,0.5)' : '#000',
                         opacity: savingPaid === p.id ? 0.5 : 1,
