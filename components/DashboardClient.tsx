@@ -13,7 +13,7 @@ interface Props {
   allParticipants: Participant[]
 }
 
-type Tab = 'picks' | 'standings' | 'results' | 'payment' | 'admin'
+type Tab = 'picks' | 'standings' | 'results' | 'reglas' | 'payment' | 'admin'
 
 const TEAM_ES: Record<string, string> = {
   'Algeria': 'Argelia', 'Argentina': 'Argentina', 'Australia': 'Australia', 'Austria': 'Austria',
@@ -212,6 +212,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
             { key: 'picks', label: 'Mis Predicciones', icon: '✏️' },
             { key: 'standings', label: 'Clasificación', icon: '🏆' },
             { key: 'results', label: 'Resultados', icon: '📊' },
+            { key: 'reglas', label: 'Reglas', icon: '📋' },
             { key: 'payment', label: 'Pagar', icon: '💳' },
             ...(participant?.is_admin ? [{ key: 'admin', label: 'Admin', icon: '🛠️' }] : []),
           ] as { key: Tab; label: string; icon: string }[]).map(t => (
@@ -506,6 +507,52 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* REGLAS TAB */}
+        {tab === 'reglas' && (
+          <div>
+            <h2 className="font-display" style={{ fontSize: '36px', letterSpacing: '2px', color: '#fff', marginBottom: '24px' }}>Reglas</h2>
+
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: isMobile ? '16px' : '20px 24px', marginBottom: '16px' }}>
+              <div className="font-display" style={{ fontSize: '14px', letterSpacing: '2px', color: '#00e87a', marginBottom: '14px' }}>CÓMO FUNCIONA</div>
+              <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '10px', color: 'rgba(255,255,255,0.7)', fontSize: '14px', lineHeight: 1.5 }}>
+                <li>En cada partido eliges el resultado: gana el <strong style={{ color: '#fff' }}>local</strong>, <strong style={{ color: '#fff' }}>empate</strong>, o gana el <strong style={{ color: '#fff' }}>visitante</strong>. No se predice el marcador exacto.</li>
+                <li>Puedes elegir, cambiar o quitar tu predicción las veces que quieras, pero solo <strong style={{ color: '#fff' }}>hasta que el partido empieza</strong>. Al arrancar queda bloqueada.</li>
+                <li>Si no predices un partido antes de que comience, ese partido queda en cero para ti.</li>
+                <li>Todos los horarios se muestran en <strong style={{ color: '#fff' }}>hora Colombia (COT)</strong>.</li>
+              </ul>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: isMobile ? '16px' : '20px 24px', marginBottom: '16px' }}>
+              <div className="font-display" style={{ fontSize: '14px', letterSpacing: '2px', color: '#00e87a', marginBottom: '6px' }}>PUNTAJE POR FASE</div>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: 0, marginBottom: '16px', lineHeight: 1.5 }}>Ganas los puntos completos si aciertas el resultado. Si fallas, ese partido vale 0. Las fases finales valen mucho más, así que la quiniela se puede definir al final.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: '10px' }}>
+                {[
+                  { fase: 'Fase de grupos', pts: 3 },
+                  { fase: 'Dieciseisavos', pts: 5 },
+                  { fase: 'Octavos', pts: 10 },
+                  { fase: 'Cuartos', pts: 20 },
+                  { fase: 'Semifinales', pts: 40 },
+                  { fase: 'Tercer lugar', pts: 20 },
+                  { fase: 'Final', pts: 80 },
+                ].map(x => (
+                  <div key={x.fase} style={{ background: 'rgba(0,232,122,0.04)', border: '1px solid rgba(0,232,122,0.12)', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                    <div className="font-display" style={{ fontSize: '26px', color: '#00e87a', letterSpacing: '1px' }}>{x.pts}</div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>{x.fase}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: isMobile ? '16px' : '20px 24px' }}>
+              <div className="font-display" style={{ fontSize: '14px', letterSpacing: '2px', color: '#00e87a', marginBottom: '14px' }}>CLASIFICACIÓN Y PREMIOS</div>
+              <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '10px', color: 'rgba(255,255,255,0.7)', fontSize: '14px', lineHeight: 1.5 }}>
+                <li>La tabla se ordena por puntos totales. En caso de empate, queda por encima quien tenga más aciertos.</li>
+                <li>El 80% de lo recaudado va al pozo de premios: <strong style={{ color: '#fff' }}>60% para el 1er lugar, 30% para el 2do y 10% para el 3ro</strong>.</li>
+              </ul>
+            </div>
           </div>
         )}
 
