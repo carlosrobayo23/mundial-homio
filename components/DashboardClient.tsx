@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Participant, LeaderboardEntry, Match, PredictionRow, Prediction } from '@/lib/types'
 import { createClient } from '@/lib/supabase'
-import { setParticipantPaid } from '@/app/actions'
+import { setParticipantPaid, sendAnnouncement } from '@/app/actions'
 import Flag from '@/components/Flag'
 
 interface Props {
@@ -160,6 +160,13 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
   const [bonusAdminEdits, setBonusAdminEdits] = useState<Record<string, { champion_points: number; mvp_points: number; top_scorer_points: number }>>({})
   const [savingBonusAdmin, setSavingBonusAdmin] = useState<string | null>(null)
 
+  // Anuncio por correo (admin)
+  const [annSubject, setAnnSubject] = useState('')
+  const [annBody, setAnnBody] = useState('')
+  const [annScope, setAnnScope] = useState<'all' | 'paid' | 'pending'>('all')
+  const [annSending, setAnnSending] = useState<'test' | 'send' | null>(null)
+  const [annResult, setAnnResult] = useState<string | null>(null)
+
   const supabase = createClient()
   const isMobile = useIsMobile()
 
@@ -287,6 +294,26 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
       setBonusAdminEdits(prev => { const c = { ...prev }; delete c[row.id]; return c })
     }
     setSavingBonusAdmin(null)
+  }
+
+  async function handleSendAnnouncement(testOnly: boolean) {
+    if (!annSubject.trim() || !annBody.trim()) {
+      alert('Escribe asunto y mensaje antes de enviar.')
+      return
+    }
+    if (!testOnly) {
+      const count = annScope === 'all' ? participants.length : annScope === 'paid' ? paidCount : pendingCount
+      if (!window.confirm(`Vas a enviar este anuncio a ${count} ${count === 1 ? 'persona' : 'personas'}. ¿Continuar?`)) return
+    }
+    setAnnSending(testOnly ? 'test' : 'send')
+    setAnnResult(null)
+    const res = await sendAnnouncement({ subject: annSubject, body: annBody, scope: annScope, testOnly })
+    if (res.ok) {
+      setAnnResult(testOnly ? 'Prueba enviada a tu correo.' : `Enviado a ${res.sent}. Fallidos: ${res.failed}.`)
+    } else {
+      setAnnResult('Error: ' + (res.error || 'no se pudo enviar'))
+    }
+    setAnnSending(null)
   }
 
   const groupedMatches = groupByDay(matches)
@@ -1113,6 +1140,55 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                 })}
               </div>
             )}
+
+            {/* Enviar anuncio por correo */}
+            <div style={{ marginTop: '40px', marginBottom: '16px' }}>
+              <h3 className="font-display" style={{ fontSize: '24px', letterSpacing: '1px', color: '#fff', marginBottom: '6px' }}>Enviar anuncio por correo</h3>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>
+                Escribe un mensaje y envíalo a los participantes. Sale desde notifications@homio.ca. Prueba primero contigo mismo antes del envío masivo.
+              </p>
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: isMobile ? '16px' : '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', letterSpacing: '1px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>ASUNTO</label>
+                <input value={annSubject} onChange={e => setAnnSubject(e.target.value)} placeholder="Asunto del anuncio" style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', color: '#fff', fontSize: '15px', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', letterSpacing: '1px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>MENSAJE</label>
+                <textarea value={annBody} onChange={e => setAnnBody(e.target.value)} rows={6} placeholder="Escribe tu mensaje. Cada salto de linea se respeta." style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', color: '#fff', fontSize: '15px', fontFamily: "'DM Sans', sans-serif", resize: 'vertical', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', letterSpacing: '1px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px' }}>DESTINATARIOS</label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {([
+                    { key: 'all' as const, label: `Todos (${participants.length})` },
+                    { key: 'paid' as const, label: `Pagados (${paidCount})` },
+                    { key: 'pending' as const, label: `Pendientes (${pendingCount})` },
+                  ]).map(opt => (
+                    <button key={opt.key} onClick={() => setAnnScope(opt.key)} style={{
+                      padding: '9px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                      fontFamily: "'DM Sans', sans-serif",
+                      background: annScope === opt.key ? '#00e87a' : 'rgba(255,255,255,0.05)',
+                      border: annScope === opt.key ? '1px solid #00e87a' : '1px solid rgba(255,255,255,0.1)',
+                      color: annScope === opt.key ? '#000' : 'rgba(255,255,255,0.5)',
+                    }}>{opt.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button onClick={() => handleSendAnnouncement(true)} disabled={annSending !== null} style={{
+                  padding: '12px 18px', borderRadius: '10px', border: '1px solid rgba(0,232,122,0.3)', background: 'rgba(0,232,122,0.1)', color: '#00e87a',
+                  fontSize: '14px', fontWeight: 700, cursor: annSending !== null ? 'default' : 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: annSending !== null ? 0.6 : 1,
+                }}>{annSending === 'test' ? 'Enviando...' : 'Enviar prueba a mí'}</button>
+                <button onClick={() => handleSendAnnouncement(false)} disabled={annSending !== null} style={{
+                  padding: '12px 18px', borderRadius: '10px', border: 'none', background: '#00e87a', color: '#000',
+                  fontSize: '14px', fontWeight: 700, cursor: annSending !== null ? 'default' : 'pointer', fontFamily: "'DM Sans', sans-serif", opacity: annSending !== null ? 0.6 : 1,
+                }}>{annSending === 'send' ? 'Enviando...' : 'Enviar a todos'}</button>
+              </div>
+              {annResult && (
+                <div style={{ fontSize: '13px', fontWeight: 600, color: annResult.startsWith('Error') ? '#ff6b35' : '#00e87a' }}>{annResult}</div>
+              )}
+            </div>
           </div>
         )}
       </main>
