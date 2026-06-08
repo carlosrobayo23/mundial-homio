@@ -477,7 +477,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                 }}>Ver instrucciones de pago</button>
               </div>
             )}
-            {participant?.has_paid && !bonusLocked && !bonusComplete && (
+            {participant?.has_paid && !bonusLocked && (
               <div style={{
                 background: 'rgba(0,232,122,0.08)', border: '1px solid rgba(0,232,122,0.25)',
                 borderRadius: '14px', padding: isMobile ? '16px' : '18px 24px', marginBottom: '32px',
@@ -485,14 +485,20 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
               }}>
                 <span style={{ fontSize: '28px' }}>🎯</span>
                 <div style={{ flex: 1, minWidth: '200px' }}>
-                  <div style={{ fontSize: '15px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>Completa tus Bonus Picks</div>
-                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>Elige Campeón, MVP y Goleador del torneo (100 puntos cada una). Se cierran al arrancar el Mundial.</div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>
+                    {bonusComplete ? 'Tus Bonus Picks están guardadas' : 'Nueva sección: Bonus Picks'}
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
+                    {bonusComplete
+                      ? 'Puedes cambiar tu Campeón, MVP y Goleador hasta que arranque el Mundial (11 de junio).'
+                      : 'Elige Campeón, MVP y Goleador del torneo (100 puntos cada una). Se cierran al arrancar el Mundial.'}
+                  </div>
                 </div>
                 <button onClick={() => setTab('bonus')} style={{
                   background: '#00e87a', border: 'none', borderRadius: '10px', padding: '12px 20px',
                   color: '#000', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
-                }}>Ir a Bonus Picks</button>
+                }}>{bonusComplete ? 'Ver Bonus Picks' : 'Ir a Bonus Picks'}</button>
               </div>
             )}
             {Object.entries(groupedMatches).map(([day, dayMatches]) => (
