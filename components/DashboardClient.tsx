@@ -13,7 +13,62 @@ interface Props {
   allParticipants: Participant[]
 }
 
-type Tab = 'picks' | 'standings' | 'results' | 'reglas' | 'payment' | 'admin'
+type Tab = 'picks' | 'bonus' | 'standings' | 'results' | 'reglas' | 'payment' | 'admin'
+
+// Bonus Picks
+const BONUS_POINTS = 100
+
+type PointKey = 'champion_points' | 'mvp_points' | 'top_scorer_points'
+
+type PlayerGroup = { country: string; players: string[] }
+
+type SpecialRow = {
+  id: string
+  participant_id: string
+  champion: string | null
+  mvp: string | null
+  top_scorer: string | null
+  champion_points: number
+  mvp_points: number
+  top_scorer_points: number
+  updated_at: string | null
+}
+
+const MVP_OPTIONS: PlayerGroup[] = [
+  { country: 'Argentina', players: ['Messi'] },
+  { country: 'Bélgica', players: ['De Bruyne', 'Doku'] },
+  { country: 'Brasil', players: ['Vinícius Júnior', 'Raphinha'] },
+  { country: 'Colombia', players: ['Luis Díaz', 'James Rodríguez'] },
+  { country: 'Croacia', players: ['Modrić'] },
+  { country: 'Egipto', players: ['Salah'] },
+  { country: 'Inglaterra', players: ['Kane', 'Bellingham', 'Declan Rice', 'Saka'] },
+  { country: 'Francia', players: ['Mbappé', 'Olise', 'Cherki', 'Dembélé'] },
+  { country: 'Alemania', players: ['Wirtz'] },
+  { country: 'México', players: ['Edson Álvarez'] },
+  { country: 'Marruecos', players: ['Hakimi'] },
+  { country: 'Noruega', players: ['Haaland'] },
+  { country: 'Portugal', players: ['Bruno Fernandes', 'Vitinha', 'Cristiano Ronaldo'] },
+  { country: 'España', players: ['Lamine Yamal', 'Pedri', 'Rodri'] },
+  { country: 'Uruguay', players: ['Valverde'] },
+  { country: 'USA', players: ['Pulisic'] },
+]
+
+const SCORER_OPTIONS: PlayerGroup[] = [
+  { country: 'Argentina', players: ['Messi', 'Julián Álvarez', 'Lautaro Martínez'] },
+  { country: 'Brasil', players: ['Vinícius Júnior', 'Raphinha'] },
+  { country: 'Canadá', players: ['Jonathan David'] },
+  { country: 'Colombia', players: ['Luis Suárez', 'Luis Díaz', 'James Rodríguez'] },
+  { country: 'Egipto', players: ['Salah'] },
+  { country: 'Inglaterra', players: ['Kane', 'Saka'] },
+  { country: 'Francia', players: ['Mbappé', 'Dembélé', 'Cherki'] },
+  { country: 'Alemania', players: ['Wirtz'] },
+  { country: 'México', players: ['Raúl Jiménez', 'Santiago Giménez'] },
+  { country: 'Noruega', players: ['Haaland'] },
+  { country: 'Portugal', players: ['Cristiano Ronaldo', 'Bruno Fernandes'] },
+  { country: 'España', players: ['Lamine Yamal', 'Oyarzabal'] },
+  { country: 'Uruguay', players: ['Valverde'] },
+  { country: 'USA', players: ['Pulisic'] },
+]
 
 const TEAM_ES: Record<string, string> = {
   'Algeria': 'Argelia', 'Argentina': 'Argentina', 'Australia': 'Australia', 'Austria': 'Austria',
@@ -58,6 +113,12 @@ function formatTime(dateStr: string) {
   return { day, time }
 }
 
+function formatSaved(iso: string) {
+  return new Date(iso).toLocaleString('es', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Bogota',
+  }) + ' COT'
+}
+
 function groupByDay(matches: Match[]) {
   const sorted = [...matches].sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime())
   const groups: Record<string, Match[]> = {}
@@ -88,8 +149,40 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
   const [saving, setSaving] = useState<string | null>(null)
   const [participants, setParticipants] = useState<Participant[]>(allParticipants)
   const [savingPaid, setSavingPaid] = useState<string | null>(null)
+
+  // Bonus Picks state
+  const [bonusChampion, setBonusChampion] = useState('')
+  const [bonusMvp, setBonusMvp] = useState('')
+  const [bonusScorer, setBonusScorer] = useState('')
+  const [bonusSavedAt, setBonusSavedAt] = useState<string | null>(null)
+  const [savingBonus, setSavingBonus] = useState(false)
+  const [allBonus, setAllBonus] = useState<SpecialRow[]>([])
+  const [bonusAdminEdits, setBonusAdminEdits] = useState<Record<string, { champion_points: number; mvp_points: number; top_scorer_points: number }>>({})
+  const [savingBonusAdmin, setSavingBonusAdmin] = useState<string | null>(null)
+
   const supabase = createClient()
   const isMobile = useIsMobile()
+
+  // Carga las Bonus Picks del usuario (y todas, si es admin)
+  useEffect(() => {
+    if (!participant) return
+    let active = true
+    ;(async () => {
+      const { data: mine } = await supabase.schema('homio').from('special_predictions')
+        .select('*').eq('participant_id', participant.id).maybeSingle()
+      if (active && mine) {
+        setBonusChampion(mine.champion || '')
+        setBonusMvp(mine.mvp || '')
+        setBonusScorer(mine.top_scorer || '')
+        setBonusSavedAt(mine.updated_at)
+      }
+      if (participant.is_admin) {
+        const { data: all } = await supabase.schema('homio').from('special_predictions').select('*')
+        if (active && all) setAllBonus(all as SpecialRow[])
+      }
+    })()
+    return () => { active = false }
+  }, [participant?.id])
 
   async function togglePrediction(matchId: string, value: Prediction) {
     if (!participant?.has_paid) { setTab('payment'); return }
@@ -128,6 +221,74 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
     window.location.href = '/login'
   }
 
+  async function saveBonus() {
+    if (!participant) return
+    if (!participant.has_paid) { setTab('payment'); return }
+    if (bonusLocked) return
+    if (!bonusChampion || !bonusMvp || !bonusScorer) {
+      alert('Selecciona Campeón, MVP y Goleador antes de guardar.')
+      return
+    }
+    setSavingBonus(true)
+    const nowIso = new Date().toISOString()
+    const { data, error } = await supabase.schema('homio').from('special_predictions').upsert({
+      participant_id: participant.id,
+      champion: bonusChampion,
+      mvp: bonusMvp,
+      top_scorer: bonusScorer,
+      updated_at: nowIso,
+    }, { onConflict: 'participant_id' }).select().maybeSingle()
+    if (error) {
+      alert('No se pudo guardar: ' + error.message)
+    } else if (data) {
+      const row = data as SpecialRow
+      setBonusSavedAt(row.updated_at)
+      setAllBonus(prev => {
+        const others = prev.filter(r => r.participant_id !== row.participant_id)
+        return [...others, row]
+      })
+    }
+    setSavingBonus(false)
+  }
+
+  function bonusEditFor(row: SpecialRow) {
+    return bonusAdminEdits[row.id] || {
+      champion_points: row.champion_points,
+      mvp_points: row.mvp_points,
+      top_scorer_points: row.top_scorer_points,
+    }
+  }
+
+  function setBonusEdit(rowId: string, key: PointKey, value: number) {
+    setBonusAdminEdits(prev => {
+      const r = allBonus.find(x => x.id === rowId)
+      const base = prev[rowId] || {
+        champion_points: r?.champion_points || 0,
+        mvp_points: r?.mvp_points || 0,
+        top_scorer_points: r?.top_scorer_points || 0,
+      }
+      return { ...prev, [rowId]: { ...base, [key]: value } }
+    })
+  }
+
+  async function saveBonusPoints(row: SpecialRow) {
+    setSavingBonusAdmin(row.id)
+    const edit = bonusEditFor(row)
+    const { data, error } = await supabase.schema('homio').from('special_predictions').update({
+      champion_points: edit.champion_points,
+      mvp_points: edit.mvp_points,
+      top_scorer_points: edit.top_scorer_points,
+    }).eq('id', row.id).select().maybeSingle()
+    if (error) {
+      alert('No se pudieron guardar los puntos: ' + error.message)
+    } else if (data) {
+      const updated = data as SpecialRow
+      setAllBonus(prev => prev.map(r => r.id === updated.id ? updated : r))
+      setBonusAdminEdits(prev => { const c = { ...prev }; delete c[row.id]; return c })
+    }
+    setSavingBonusAdmin(null)
+  }
+
   const groupedMatches = groupByDay(matches)
   const myPredCount = Object.values(predictions).filter(Boolean).length
   const totalMatches = matches.length
@@ -154,6 +315,28 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
   const paidCount = participants.filter(p => p.has_paid).length
   const pendingCount = participants.filter(p => !p.has_paid).length
   const sortedParticipants = [...participants].sort((a, b) => Number(a.has_paid) - Number(b.has_paid))
+
+  // Bonus Picks: bloqueo por primer partido y opciones derivadas
+  const firstMatchTime = matches.length ? Math.min(...matches.map(m => new Date(m.match_date).getTime())) : 0
+  const bonusLocked = firstMatchTime > 0 && Date.now() >= firstMatchTime
+  const bonusComplete = !!(bonusChampion && bonusMvp && bonusScorer)
+  const championTeams = Array.from(
+    new Set(matches.filter(m => m.phase === 'groups').flatMap(m => [m.home_team, m.away_team]))
+  )
+    .filter(t => isTeamConfirmed(t))
+    .sort((a, b) => teamName(a).localeCompare(teamName(b), 'es'))
+  const bonusSelectStyle = {
+    width: '100%', padding: '13px 14px', background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', color: '#fff',
+    fontSize: '15px', fontFamily: "'DM Sans', sans-serif",
+  }
+  const bonusOptStyle = { background: '#0d0d14', color: '#fff' }
+
+  const bonusSummary = [
+    { label: 'Campeón', value: bonusChampion ? teamName(bonusChampion) : null },
+    { label: 'MVP', value: bonusMvp || null },
+    { label: 'Goleador', value: bonusScorer || null },
+  ]
 
   return (
     <div style={{ minHeight: '100vh', background: '#080810', fontFamily: "'DM Sans', sans-serif" }}>
@@ -210,6 +393,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
         <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {([
             { key: 'picks', label: 'Mis Predicciones', icon: '✏️' },
+            { key: 'bonus', label: 'Bonus Picks', icon: '🎯' },
             { key: 'standings', label: 'Clasificación', icon: '🏆' },
             { key: 'results', label: 'Resultados', icon: '📊' },
             { key: 'reglas', label: 'Reglas', icon: '📋' },
@@ -264,6 +448,24 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                   background: '#ff6b35', border: 'none', borderRadius: '10px', padding: '12px 24px',
                   color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                 }}>Ver instrucciones de pago</button>
+              </div>
+            )}
+            {participant?.has_paid && !bonusLocked && !bonusComplete && (
+              <div style={{
+                background: 'rgba(0,232,122,0.08)', border: '1px solid rgba(0,232,122,0.25)',
+                borderRadius: '14px', padding: isMobile ? '16px' : '18px 24px', marginBottom: '32px',
+                display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap',
+              }}>
+                <span style={{ fontSize: '28px' }}>🎯</span>
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                  <div style={{ fontSize: '15px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>Completa tus Bonus Picks</div>
+                  <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>Elige Campeón, MVP y Goleador del torneo (100 puntos cada una). Se cierran al arrancar el Mundial.</div>
+                </div>
+                <button onClick={() => setTab('bonus')} style={{
+                  background: '#00e87a', border: 'none', borderRadius: '10px', padding: '12px 20px',
+                  color: '#000', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
+                }}>Ir a Bonus Picks</button>
               </div>
             )}
             {Object.entries(groupedMatches).map(([day, dayMatches]) => (
@@ -411,6 +613,129 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
           </div>
         )}
 
+        {/* BONUS PICKS TAB */}
+        {tab === 'bonus' && (
+          <div>
+            <div style={{ marginBottom: '24px' }}>
+              <h2 className="font-display" style={{ fontSize: '36px', letterSpacing: '2px', color: '#fff', marginBottom: '6px' }}>Bonus Picks</h2>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.35)' }}>
+                Tres selecciones especiales para todo el torneo: Campeón, MVP y Goleador. Valen 100 puntos cada una. Se cierran cuando arranca el Mundial (primer partido).
+              </p>
+            </div>
+
+            {/* Recuadro verde fijo con las selecciones guardadas */}
+            <div style={{
+              position: 'sticky', top: '64px', zIndex: 10,
+              background: 'rgba(0,232,122,0.08)', border: '1px solid rgba(0,232,122,0.25)',
+              borderRadius: '14px', padding: isMobile ? '14px 16px' : '16px 20px', marginBottom: '24px',
+              backdropFilter: 'blur(8px)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                <span className="font-display" style={{ fontSize: '12px', letterSpacing: '2px', color: '#00e87a' }}>TUS BONUS PICKS GUARDADOS</span>
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>
+                  {bonusSavedAt ? `Último guardado: ${formatSaved(bonusSavedAt)}` : 'Aún no has guardado'}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '10px' }}>
+                {bonusSummary.map(item => (
+                  <div key={item.label} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '10px 14px' }}>
+                    <div style={{ fontSize: '10px', letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', marginBottom: '4px' }}>{item.label.toUpperCase()} · 100 PTS</div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: item.value ? '#fff' : 'rgba(255,255,255,0.25)' }}>{item.value || 'Sin elegir'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {!participant?.has_paid ? (
+              <div style={{
+                background: 'rgba(255,107,53,0.08)', border: '1px solid rgba(255,107,53,0.25)',
+                borderRadius: '14px', padding: '24px', textAlign: 'center',
+              }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔒</div>
+                <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff', marginBottom: '8px' }}>Pago pendiente</div>
+                <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)', marginBottom: '16px' }}>Completa tu inscripción para desbloquear las Bonus Picks.</div>
+                <button onClick={() => setTab('payment')} style={{
+                  background: '#ff6b35', border: 'none', borderRadius: '10px', padding: '12px 24px',
+                  color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                }}>Ver instrucciones de pago</button>
+              </div>
+            ) : bonusLocked ? (
+              <div style={{
+                background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '14px', padding: '24px', textAlign: 'center',
+              }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔒</div>
+                <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff', marginBottom: '8px' }}>Bonus Picks cerradas</div>
+                <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>El torneo ya comenzó, así que ya no se pueden modificar. Tus selecciones quedaron registradas arriba.</div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Campeón */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: isMobile ? '16px' : '20px 24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: 600, color: '#fff' }}>🏆 Campeón del torneo</span>
+                    <span className="font-display" style={{ fontSize: '13px', color: '#00e87a' }}>100 pts</span>
+                  </div>
+                  <select value={bonusChampion} onChange={e => setBonusChampion(e.target.value)} style={bonusSelectStyle}>
+                    <option value="" style={bonusOptStyle}>Selecciona un equipo</option>
+                    {championTeams.map(t => (
+                      <option key={t} value={t} style={bonusOptStyle}>{teamName(t)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* MVP */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: isMobile ? '16px' : '20px 24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: 600, color: '#fff' }}>⭐ MVP del torneo</span>
+                    <span className="font-display" style={{ fontSize: '13px', color: '#00e87a' }}>100 pts</span>
+                  </div>
+                  <select value={bonusMvp} onChange={e => setBonusMvp(e.target.value)} style={bonusSelectStyle}>
+                    <option value="" style={bonusOptStyle}>Selecciona un jugador</option>
+                    {MVP_OPTIONS.map(g => (
+                      <optgroup key={g.country} label={g.country} style={bonusOptStyle}>
+                        {g.players.map(p => (
+                          <option key={g.country + '_' + p} value={p} style={bonusOptStyle}>{p}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Goleador */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: isMobile ? '16px' : '20px 24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: 600, color: '#fff' }}>⚽ Goleador del torneo</span>
+                    <span className="font-display" style={{ fontSize: '13px', color: '#00e87a' }}>100 pts</span>
+                  </div>
+                  <select value={bonusScorer} onChange={e => setBonusScorer(e.target.value)} style={bonusSelectStyle}>
+                    <option value="" style={bonusOptStyle}>Selecciona un jugador</option>
+                    {SCORER_OPTIONS.map(g => (
+                      <optgroup key={g.country} label={g.country} style={bonusOptStyle}>
+                        {g.players.map(p => (
+                          <option key={g.country + '_' + p} value={p} style={bonusOptStyle}>{p}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+
+                <button onClick={saveBonus} disabled={savingBonus} style={{
+                  padding: '14px', borderRadius: '10px', border: 'none', background: '#00e87a', color: '#000',
+                  fontSize: '15px', fontWeight: 700, cursor: savingBonus ? 'default' : 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", opacity: savingBonus ? 0.6 : 1,
+                }}>
+                  {savingBonus ? 'Guardando...' : 'Guardar Bonus Picks'}
+                </button>
+
+                <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', textAlign: 'center', margin: 0 }}>
+                  Puedes cambiar tus selecciones cuantas veces quieras hasta que arranque el torneo. Los puntos se asignan al final.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* STANDINGS TAB */}
         {tab === 'standings' && (
           <div>
@@ -541,6 +866,23 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                   <div key={x.fase} style={{ background: 'rgba(0,232,122,0.04)', border: '1px solid rgba(0,232,122,0.12)', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
                     <div className="font-display" style={{ fontSize: '26px', color: '#00e87a', letterSpacing: '1px' }}>{x.pts}</div>
                     <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>{x.fase}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: isMobile ? '16px' : '20px 24px', marginBottom: '16px' }}>
+              <div className="font-display" style={{ fontSize: '14px', letterSpacing: '2px', color: '#00e87a', marginBottom: '6px' }}>BONUS PICKS</div>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: 0, marginBottom: '16px', lineHeight: 1.5 }}>Tres predicciones especiales para todo el torneo. Cada acierto vale 100 puntos. Se eligen una sola vez y quedan bloqueadas cuando arranca el Mundial (primer partido).</p>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(3, 1fr)', gap: '10px' }}>
+                {[
+                  { sel: 'Campeón', pts: 100 },
+                  { sel: 'MVP', pts: 100 },
+                  { sel: 'Goleador', pts: 100 },
+                ].map(x => (
+                  <div key={x.sel} style={{ background: 'rgba(0,232,122,0.04)', border: '1px solid rgba(0,232,122,0.12)', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                    <div className="font-display" style={{ fontSize: '26px', color: '#00e87a', letterSpacing: '1px' }}>{x.pts}</div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>{x.sel}</div>
                   </div>
                 ))}
               </div>
@@ -714,6 +1056,61 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Bonus Picks: asignar puntos */}
+            <div style={{ marginTop: '40px', marginBottom: '16px' }}>
+              <h3 className="font-display" style={{ fontSize: '24px', letterSpacing: '1px', color: '#fff', marginBottom: '6px' }}>Bonus Picks: asignar puntos</h3>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>
+                Al terminar el torneo, marca cada acierto. Cada selección correcta vale 100 puntos. Recuerda guardar cada fila.
+              </p>
+            </div>
+
+            {allBonus.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>
+                Nadie ha guardado sus Bonus Picks todavía.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {allBonus.map(row => {
+                  const p = participants.find(x => x.id === row.participant_id)
+                  const edit = bonusEditFor(row)
+                  const total = edit.champion_points + edit.mvp_points + edit.top_scorer_points
+                  const picks: { key: PointKey; label: string; pick: string; pts: number }[] = [
+                    { key: 'champion_points', label: 'Campeón', pick: row.champion ? teamName(row.champion) : 'Sin elegir', pts: edit.champion_points },
+                    { key: 'mvp_points', label: 'MVP', pick: row.mvp || 'Sin elegir', pts: edit.mvp_points },
+                    { key: 'top_scorer_points', label: 'Goleador', pick: row.top_scorer || 'Sin elegir', pts: edit.top_scorer_points },
+                  ]
+                  return (
+                    <div key={row.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: isMobile ? '14px' : '16px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>{p?.name || 'Participante'}</span>
+                        <span className="font-display" style={{ marginLeft: 'auto', fontSize: '16px', color: '#00e87a' }}>{total} pts</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '10px', marginBottom: '12px' }}>
+                        {picks.map(pk => (
+                          <div key={pk.key} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '10px 12px' }}>
+                            <div style={{ fontSize: '10px', letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', marginBottom: '3px' }}>{pk.label.toUpperCase()}</div>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff', marginBottom: '8px' }}>{pk.pick}</div>
+                            <button onClick={() => setBonusEdit(row.id, pk.key, pk.pts === BONUS_POINTS ? 0 : BONUS_POINTS)} style={{
+                              width: '100%', padding: '8px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                              fontFamily: "'DM Sans', sans-serif",
+                              background: pk.pts === BONUS_POINTS ? '#00e87a' : 'rgba(255,255,255,0.05)',
+                              border: pk.pts === BONUS_POINTS ? '1px solid #00e87a' : '1px solid rgba(255,255,255,0.1)',
+                              color: pk.pts === BONUS_POINTS ? '#000' : 'rgba(255,255,255,0.5)',
+                            }}>{pk.pts === BONUS_POINTS ? 'Acertó (100)' : 'Marcar acierto'}</button>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={() => saveBonusPoints(row)} disabled={savingBonusAdmin === row.id} style={{
+                        padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'rgba(0,232,122,0.15)', color: '#00e87a',
+                        fontSize: '13px', fontWeight: 700, cursor: savingBonusAdmin === row.id ? 'default' : 'pointer',
+                        fontFamily: "'DM Sans', sans-serif", opacity: savingBonusAdmin === row.id ? 0.6 : 1,
+                      }}>{savingBonusAdmin === row.id ? 'Guardando...' : 'Guardar puntos'}</button>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
