@@ -167,6 +167,8 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
   const [annSending, setAnnSending] = useState<'test' | 'send' | null>(null)
   const [annResult, setAnnResult] = useState<string | null>(null)
 
+  const [voteStats, setVoteStats] = useState<Record<string, { total: number; home: number; draw: number; away: number }>>({})
+
   const supabase = createClient()
   const isMobile = useIsMobile()
 
@@ -196,6 +198,39 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
     return () => { active = false }
   }, [participant?.id])
 
+  async function refreshVoteStats() {
+    const { data } = await supabase.schema('homio').from('match_vote_stats').select('*')
+    if (data) {
+      const map: Record<string, { total: number; home: number; draw: number; away: number }> = {}
+      ;(data as any[]).forEach(r => { map[r.match_id] = { total: r.total, home: r.home, draw: r.draw, away: r.away } })
+      setVoteStats(map)
+    }
+  }
+
+  useEffect(() => { refreshVoteStats() }, [])
+
+  function renderVoteBar(match: Match) {
+    const s = voteStats[match.id]
+    if (!s || s.total === 0) return null
+    const pct = (n: number) => Math.round((n / s.total) * 100)
+    const h = pct(s.home), d = pct(s.draw), a = pct(s.away)
+    return (
+      <div style={{ marginTop: '10px', marginRight: isMobile ? '0' : '240px' }}>
+        <div style={{ display: 'flex', height: '6px', borderRadius: '100px', overflow: 'hidden', background: 'rgba(255,255,255,0.06)' }}>
+          <div style={{ width: `${h}%`, background: '#00e87a' }} />
+          <div style={{ width: `${d}%`, background: 'rgba(255,255,255,0.25)' }} />
+          <div style={{ width: `${a}%`, background: '#ff6b35' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px', fontSize: '10px' }}>
+          <span style={{ color: '#00e87a', fontWeight: 600 }}>{abbreviate(match.home_team)} {h}%</span>
+          <span style={{ color: 'rgba(255,255,255,0.45)' }}>Empate {d}%</span>
+          <span style={{ color: '#ff6b35', fontWeight: 600 }}>{abbreviate(match.away_team)} {a}%</span>
+        </div>
+        <div style={{ textAlign: 'center', fontSize: '10px', color: 'rgba(255,255,255,0.25)', marginTop: '2px' }}>{s.total} {s.total === 1 ? 'voto' : 'votos'}</div>
+      </div>
+    )
+  }
+
   async function togglePrediction(matchId: string, value: Prediction) {
     if (!participant?.has_paid) { setTab('payment'); return }
     if (!participant) return
@@ -212,6 +247,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
       }, { onConflict: 'participant_id,match_id' })
     }
     setSaving(null)
+    refreshVoteStats()
   }
 
   async function togglePaid(p: Participant) {
@@ -581,6 +617,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                           ) : !participant?.has_paid ? (
                             <div style={{ textAlign: 'center', fontSize: '11px', color: 'rgba(255,107,53,0.6)' }}>🔒 Completa tu pago para predecir</div>
                           ) : null}
+                          {renderVoteBar(match)}
                         </div>
                       )
                     }
@@ -643,6 +680,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                             <div style={{ marginLeft: '8px', padding: '6px 10px', fontSize: '10px', color: 'rgba(255,107,53,0.5)', border: '1px solid rgba(255,107,53,0.1)', borderRadius: '8px' }}>🔒</div>
                           ) : null}
                         </div>
+                        {renderVoteBar(match)}
                       </div>
                     )
                   })}
