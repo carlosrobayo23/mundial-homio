@@ -13,7 +13,7 @@ interface Props {
   allParticipants: Participant[]
 }
 
-type Tab = 'picks' | 'bonus' | 'standings' | 'results' | 'reglas' | 'payment' | 'admin'
+type Tab = 'picks' | 'bonus' | 'standings' | 'results' | 'reglas' | 'payment' | 'admin' | 'bonusall'
 
 // Bonus Picks
 const BONUS_POINTS = 100
@@ -183,9 +183,14 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
         setBonusScorer(mine.top_scorer || '')
         setBonusSavedAt(mine.updated_at)
       }
-      if (participant.is_admin) {
+      const started = matches.length ? Date.now() >= Math.min(...matches.map(m => new Date(m.match_date).getTime())) : false
+      if (participant.is_admin || started) {
         const { data: all } = await supabase.schema('homio').from('special_predictions').select('*')
         if (active && all) setAllBonus(all as SpecialRow[])
+        if (allParticipants.length === 0) {
+          const { data: people } = await supabase.schema('homio').from('participants').select('*')
+          if (active && people) setParticipants(people as Participant[])
+        }
       }
     })()
     return () => { active = false }
@@ -423,6 +428,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
             { key: 'bonus', label: 'Bonus Picks', icon: '🎯' },
             { key: 'standings', label: 'Clasificación', icon: '🏆' },
             { key: 'results', label: 'Resultados', icon: '📊' },
+            ...((participant?.is_admin || bonusLocked) ? [{ key: 'bonusall', label: 'Bonus de todos', icon: '👀' }] : []),
             { key: 'reglas', label: 'Reglas', icon: '📋' },
             { key: 'payment', label: 'Pagar', icon: '💳' },
             ...(participant?.is_admin ? [{ key: 'admin', label: 'Admin', icon: '🛠️' }] : []),
@@ -766,6 +772,101 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* BONUS PICKS DE TODOS (admin antes del torneo, publico para todos despues) */}
+        {tab === 'bonusall' && (participant?.is_admin || bonusLocked) && (
+          <div>
+            <div style={{ marginBottom: '8px' }}>
+              <h2 className="font-display" style={{ fontSize: '36px', letterSpacing: '2px', color: '#fff', marginBottom: '6px' }}>Bonus Picks de todos</h2>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.35)' }}>
+                {bonusLocked
+                  ? 'Estas son las Bonus Picks de todos los participantes que pagaron.'
+                  : 'Vista solo para admin. Esta sección se hace pública para todos cuando arranque el torneo (11 de junio).'}
+              </p>
+            </div>
+
+            {(() => {
+              const byId = new Map(allBonus.map(r => [r.participant_id, r]))
+              const isFilled = (r?: SpecialRow) => !!(r && r.champion && r.mvp && r.top_scorer)
+              const people = participants.filter(p => p.has_paid)
+              const filled = people.filter(p => isFilled(byId.get(p.id))).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'))
+              const missing = people.filter(p => !isFilled(byId.get(p.id))).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'))
+              const total = people.length
+
+              if (total === 0) {
+                return <div style={{ textAlign: 'center', padding: '48px', color: 'rgba(255,255,255,0.2)', fontSize: '14px' }}>Cargando participantes...</div>
+              }
+
+              return (
+                <>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', margin: '16px 0 24px' }}>
+                    <div style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Llenaron</div>
+                      <div className="font-display" style={{ fontSize: '22px', color: '#00e87a' }}>{filled.length}</div>
+                    </div>
+                    <div style={{ background: 'rgba(255,107,53,0.06)', border: '1px solid rgba(255,107,53,0.15)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Faltan</div>
+                      <div className="font-display" style={{ fontSize: '22px', color: '#ff6b35' }}>{missing.length}</div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '12px 18px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>Total</div>
+                      <div className="font-display" style={{ fontSize: '22px', color: '#fff' }}>{total}</div>
+                    </div>
+                  </div>
+
+                  {/* Completados */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                    {filled.map(p => {
+                      const r = byId.get(p.id)!
+                      const items = [
+                        { label: 'Campeón', value: r.champion ? teamName(r.champion) : '' },
+                        { label: 'MVP', value: r.mvp || '' },
+                        { label: 'Goleador', value: r.top_scorer || '' },
+                      ]
+                      return (
+                        <div key={p.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: isMobile ? '14px' : '16px 20px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                            {p.avatar_url ? (
+                              <img src={p.avatar_url} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%' }} />
+                            ) : (
+                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>{p.name?.[0]?.toUpperCase()}</div>
+                            )}
+                            <span style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>{p.name}</span>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '10px' }}>
+                            {items.map(it => (
+                              <div key={it.label} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '10px 12px' }}>
+                                <div style={{ fontSize: '10px', letterSpacing: '1px', color: 'rgba(255,255,255,0.35)', marginBottom: '3px' }}>{it.label.toUpperCase()}</div>
+                                <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff' }}>{it.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {filled.length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '24px', color: 'rgba(255,255,255,0.2)', fontSize: '13px' }}>Nadie ha llenado sus Bonus Picks todavía.</div>
+                    )}
+                  </div>
+
+                  {/* Sin llenar */}
+                  {missing.length > 0 && (
+                    <div>
+                      <div className="font-display" style={{ fontSize: '14px', letterSpacing: '2px', color: '#ff6b35', marginBottom: '12px' }}>SIN LLENAR ({missing.length})</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {missing.map(p => (
+                          <div key={p.id} style={{ background: 'rgba(255,107,53,0.06)', border: '1px solid rgba(255,107,53,0.15)', borderRadius: '100px', padding: '6px 14px', fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
+                            {p.name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </div>
         )}
 
