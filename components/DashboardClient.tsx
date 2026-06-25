@@ -143,6 +143,7 @@ function useIsMobile() {
 
 export default function DashboardClient({ participant, leaderboard, matches, myPredictions, allParticipants = [] }: Props) {
   const [tab, setTab] = useState<Tab>(participant?.has_paid ? 'picks' : 'payment')
+  const [pickFilter, setPickFilter] = useState<'upcoming' | 'played' | 'all'>('upcoming')
   const [predictions, setPredictions] = useState<Record<string, Prediction | null>>(
     Object.fromEntries(myPredictions.map(p => [p.match_id, p.prediction]))
   )
@@ -357,7 +358,14 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
     setAnnSending(null)
   }
 
-  const groupedMatches = groupByDay(matches)
+  const filteredMatches = matches.filter(m => {
+    if (pickFilter === 'upcoming') return m.status !== 'finished'
+    if (pickFilter === 'played') return m.status === 'finished'
+    return true
+  })
+  const groupedMatches = groupByDay(filteredMatches)
+  const upcomingCount = matches.filter(m => m.status !== 'finished').length
+  const playedCount = matches.filter(m => m.status === 'finished').length
   const myPredCount = Object.values(predictions).filter(Boolean).length
   const totalMatches = matches.length
   const progress = totalMatches > 0 ? Math.round((myPredCount / totalMatches) * 100) : 0
@@ -543,6 +551,38 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                 }}>{bonusComplete ? 'Ver Bonus Picks' : 'Ir a Bonus Picks'}</button>
               </div>
             )}
+            {/* Filtro: Proximos / Jugados / Todos */}
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '24px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '4px' }}>
+              {([
+                { key: 'upcoming', label: `Próximos (${upcomingCount})` },
+                { key: 'played', label: `Jugados (${playedCount})` },
+                { key: 'all', label: `Todos (${matches.length})` },
+              ] as { key: 'upcoming' | 'played' | 'all'; label: string }[]).map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setPickFilter(f.key)}
+                  style={{
+                    flex: 1,
+                    background: pickFilter === f.key ? 'rgba(0,232,122,0.14)' : 'transparent',
+                    border: pickFilter === f.key ? '1px solid rgba(0,232,122,0.4)' : '1px solid transparent',
+                    color: pickFilter === f.key ? '#fff' : 'rgba(255,255,255,0.45)',
+                    borderRadius: '9px',
+                    padding: '9px 8px',
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: '13px',
+                    fontWeight: pickFilter === f.key ? 700 : 500,
+                  }}
+                >{f.label}</button>
+              ))}
+            </div>
+
+            {Object.keys(groupedMatches).length === 0 && (
+              <div style={{ textAlign: 'center', padding: '48px 20px', color: 'rgba(255,255,255,0.35)', fontSize: '14px' }}>
+                {pickFilter === 'upcoming' ? 'No hay partidos próximos. Ya se jugaron todos.' : pickFilter === 'played' ? 'Todavía no se ha jugado ningún partido.' : 'No hay partidos disponibles.'}
+              </div>
+            )}
+
             {Object.entries(groupedMatches).map(([day, dayMatches]) => (
               <div key={day} style={{ marginBottom: '40px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
