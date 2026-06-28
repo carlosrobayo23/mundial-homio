@@ -68,6 +68,8 @@ const STAGE_MAP: Record<string, string> = {
   'FINAL': 'final',
 }
 
+const KO_PHASES = ['round_of_32', 'round_of_16', 'quarterfinals', 'semifinals', 'third_place', 'final']
+
 function norm(s: string) {
   const base = (s || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -144,15 +146,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const data = await fetchMatches(true)
+    const data = await fetchMatches(false)
     if (data?.message || data?.errorCode) results.api_error = data.message || data.errorCode
-    const apiMatches = (data?.matches || []).filter((m: any) => m.status === 'FINISHED')
+    const apiAll = data?.matches || []
+    const apiMatches = apiAll.filter((m: any) => m.status === 'FINISHED')
     results.finished_in_api = apiMatches.length
 
     // Traer nuestros partidos una sola vez e indexar por fase + equipos normalizados.
     const { data: ours, error } = await supabase
       .from('matches')
-      .select('id, phase, home_team, away_team, status, home_score, away_score')
+      .select('id, phase, home_team, away_team, status, home_score, away_score, match_date')
     if (error) {
       results.errors.push(error.message)
       return NextResponse.json({ ok: true, timestamp: new Date().toISOString(), ...results })
@@ -247,6 +250,57 @@ export async function GET(req: NextRequest) {
         }
       } else {
         results.unmatched.push(`${apiHome} vs ${apiAway} (${am.stage})`)
+      }
+    }
+
+    // ---- Pase 2: rellenar cruces de knockout ya definidos pero aun no jugados ----
+    // football-data.org nombra los equipos del bracket en cuanto se definen. Aqui
+    // emparejamos por orden de fecha dentro de cada fase y solo cuando la fase esta
+    // completa (todos los equipos reales), para no desalinear los cruces.
+    const apiByPhase: Record<string, any[]> = {}
+    for (const am of apiAll) {
+      const phase = mapStage(am.stage)
+      if (!KO_PHASES.includes(phase)) continue
+      const h = am.homeTeam?.name
+      const a = am.awayTeam?.name
+      if (!h || !a) continue
+      const oh = OUR_BY_NORM[norm(h)]
+      const oa = OUR_BY_NORM[norm(a)]
+      if (!oh || !oa) continue
+      ;(apiByPhase[phase] ||= []).push({ oh, oa, date: am.utcDate })
+    }
+
+    const ourKO: Record<string, any[]> = {}
+    for (const m of ours || []) {
+      if (!KO_PHASES.includes(m.phase)) continue
+      ;(ourKO[m.phase] ||= []).push(m)
+    }
+
+    for (const phase of KO_PHASES) {
+      const apiList = (apiByPhase[phase] || []).slice()
+        .sort((x, y) => new Date(x.date).getTime() - new Date(y.date).getTime())
+      const ourList = (ourKO[phase] || []).slice()
+        .sort((x, y) => new Date(x.match_date).getTime() - new Date(y.match_date).getTime())
+      // Solo si la fase esta completa: mismo numero de partidos con equipos reales.
+      if (apiList.length === 0 || apiList.length !== ourList.length) continue
+
+      for (let i = 0; i < ourList.length; i++) {
+        const o = ourList[i]
+        const a = apiList[i]
+        if (o.status === 'finished') continue
+        const newDate = new Date(a.date).toISOString()
+        const needTeams = norm(o.home_team) !== norm(a.oh) || norm(o.away_team) !== norm(a.oa)
+        const needDate = !o.match_date || new Date(o.match_date).toISOString() !== newDate
+        if (needTeams || needDate) {
+          await supabase.from('matches').update({
+            home_team: a.oh,
+            away_team: a.oa,
+            home_flag_code: FLAG_CODES[a.oh] || null,
+            away_flag_code: FLAG_CODES[a.oa] || null,
+            match_date: newDate,
+          }).eq('id', o.id)
+          results.knockout_filled++
+        }
       }
     }
   } catch (err: any) {
