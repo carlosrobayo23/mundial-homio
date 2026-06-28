@@ -603,7 +603,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                       { value: '1' as Prediction, label: abbreviate(match.home_team) },
                       { value: 'X' as Prediction, label: 'Empate' },
                       { value: '2' as Prediction, label: abbreviate(match.away_team) },
-                    ]
+                    ].filter(o => match.phase === 'groups' || o.value !== 'X')
 
                     if (isMobile) {
                       return (
@@ -699,7 +699,7 @@ export default function DashboardClient({ participant, leaderboard, matches, myP
                                 { value: '1' as Prediction, label: abbreviate(match.home_team) },
                                 { value: 'X' as Prediction, label: 'Empate' },
                                 { value: '2' as Prediction, label: abbreviate(match.away_team) },
-                              ]).map(opt => (
+                              ]).filter(opt => match.phase === 'groups' || opt.value !== 'X').map(opt => (
                                 <button key={opt.value} onClick={() => togglePrediction(match.id, opt.value)} disabled={saving === match.id} style={{
                                   padding: '6px 10px', height: '36px',
                                   background: current === opt.value ? '#00e87a' : 'rgba(255,255,255,0.05)',
