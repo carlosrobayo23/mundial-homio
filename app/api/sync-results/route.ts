@@ -88,6 +88,16 @@ function mapStage(stage: string): string {
   return STAGE_MAP[stage] || 'groups'
 }
 
+// En knockout el acierto es quien avanza. football-data.org da score.winner
+// (HOME_TEAM / AWAY_TEAM) incluso si se definio por penales. Si nuestro registro
+// tiene los equipos invertidos, el ganador tambien se invierte.
+function koWinnerFrom(am: any, swapped: boolean): string | null {
+  const w = am.score?.winner
+  let r: string | null = w === 'HOME_TEAM' ? 'home' : w === 'AWAY_TEAM' ? 'away' : null
+  if (swapped && r) r = r === 'home' ? 'away' : 'home'
+  return r
+}
+
 async function fetchMatches(onlyFinished: boolean) {
   const url = `${API_BASE}/competitions/${COMPETITION}/matches${onlyFinished ? '?status=FINISHED' : ''}`
   const res = await fetch(url, {
@@ -125,6 +135,7 @@ export async function GET(req: NextRequest) {
         home: m.homeTeam?.name,
         away: m.awayTeam?.name,
         score: `${m.score?.fullTime?.home}-${m.score?.fullTime?.away}`,
+        winner: m.score?.winner,
       })),
     })
   }
@@ -155,7 +166,7 @@ export async function GET(req: NextRequest) {
     // Traer nuestros partidos una sola vez e indexar por fase + equipos normalizados.
     const { data: ours, error } = await supabase
       .from('matches')
-      .select('id, phase, home_team, away_team, status, home_score, away_score, match_date')
+      .select('id, phase, home_team, away_team, status, home_score, away_score, match_date, api_match_id')
     if (error) {
       results.errors.push(error.message)
       return NextResponse.json({ ok: true, timestamp: new Date().toISOString(), ...results })
@@ -166,6 +177,7 @@ export async function GET(req: NextRequest) {
       idx[`${m.phase}|${norm(m.home_team)}|${norm(m.away_team)}`] = m
     }
 
+    // ---- Pase 1: marcar resultados de partidos finalizados ----
     for (const am of apiMatches) {
       const apiHome = am.homeTeam?.name
       const apiAway = am.awayTeam?.name
@@ -178,11 +190,13 @@ export async function GET(req: NextRequest) {
       const keySwapped = `${phase}|${norm(apiAway)}|${norm(apiHome)}`
 
       let m = idx[keyDirect]
+      let swapped = false
       let homeScore = gh
       let awayScore = ga
       if (!m && idx[keySwapped]) {
         // Nuestro registro tiene los equipos al reves: invertimos el marcador para que calce.
         m = idx[keySwapped]
+        swapped = true
         homeScore = ga
         awayScore = gh
       }
@@ -190,11 +204,9 @@ export async function GET(req: NextRequest) {
       if (m) {
         const changed = m.home_score !== homeScore || m.away_score !== awayScore
         if (m.status !== 'finished' || changed) {
-          await supabase.from('matches').update({
-            home_score: homeScore,
-            away_score: awayScore,
-            status: 'finished',
-          }).eq('id', m.id)
+          const upd: any = { home_score: homeScore, away_score: awayScore, status: 'finished' }
+          if (phase !== 'groups') upd.winner = koWinnerFrom(am, swapped)
+          await supabase.from('matches').update(upd).eq('id', m.id)
           results.updated++
         }
         continue
@@ -235,13 +247,16 @@ export async function GET(req: NextRequest) {
               home_score: gh,
               away_score: ga,
               status: 'finished',
+              winner: koWinnerFrom(am, false),
             }).eq('id', ko.id)
             results.knockout_filled++
           } else {
+            const swapped2 = norm(ko.home_team) === norm(apiAway)
             await supabase.from('matches').update({
-              home_score: gh,
-              away_score: ga,
+              home_score: swapped2 ? ga : gh,
+              away_score: swapped2 ? gh : ga,
               status: 'finished',
+              winner: koWinnerFrom(am, swapped2),
             }).eq('id', ko.id)
             results.updated++
           }
@@ -253,21 +268,17 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ---- Pase 2: rellenar cruces de knockout ya definidos pero aun no jugados ----
-    // football-data.org nombra los equipos del bracket en cuanto se definen. Aqui
-    // emparejamos por orden de fecha dentro de cada fase y solo cuando la fase esta
-    // completa (todos los equipos reales), para no desalinear los cruces.
+    // ---- Pase 2: anclar y rellenar cruces de knockout desde el bracket de football-data.org ----
+    // Ancla cada partido nuestro a uno de la API por api_match_id (estable) y llena equipos
+    // en cuanto la API los define (parcial, sin esperar a que la ronda este completa). Toma
+    // fecha y banderas reales. No cambia el resultado de partidos ya jugados.
     const apiByPhase: Record<string, any[]> = {}
     for (const am of apiAll) {
       const phase = mapStage(am.stage)
       if (!KO_PHASES.includes(phase)) continue
-      const h = am.homeTeam?.name
-      const a = am.awayTeam?.name
-      if (!h || !a) continue
-      const oh = OUR_BY_NORM[norm(h)]
-      const oa = OUR_BY_NORM[norm(a)]
-      if (!oh || !oa) continue
-      ;(apiByPhase[phase] ||= []).push({ oh, oa, date: am.utcDate })
+      const oh = am.homeTeam?.name ? (OUR_BY_NORM[norm(am.homeTeam.name)] || null) : null
+      const oa = am.awayTeam?.name ? (OUR_BY_NORM[norm(am.awayTeam.name)] || null) : null
+      ;(apiByPhase[phase] ||= []).push({ apiId: am.id, date: am.utcDate, oh, oa })
     }
 
     const ourKO: Record<string, any[]> = {}
@@ -280,25 +291,40 @@ export async function GET(req: NextRequest) {
       const apiList = (apiByPhase[phase] || []).slice()
         .sort((x, y) => new Date(x.date).getTime() - new Date(y.date).getTime())
       const ourList = (ourKO[phase] || []).slice()
-        .sort((x, y) => new Date(x.match_date).getTime() - new Date(y.match_date).getTime())
-      // Solo si la fase esta completa: mismo numero de partidos con equipos reales.
+      // Necesitamos el set completo de la fase en la API para emparejar 1 a 1.
       if (apiList.length === 0 || apiList.length !== ourList.length) continue
 
-      for (let i = 0; i < ourList.length; i++) {
-        const o = ourList[i]
-        const a = apiList[i]
-        if (o.status === 'finished') continue
-        const newDate = new Date(a.date).toISOString()
-        const needTeams = norm(o.home_team) !== norm(a.oh) || norm(o.away_team) !== norm(a.oa)
-        const needDate = !o.match_date || new Date(o.match_date).toISOString() !== newDate
-        if (needTeams || needDate) {
-          await supabase.from('matches').update({
-            home_team: a.oh,
-            away_team: a.oa,
-            home_flag_code: FLAG_CODES[a.oh] || null,
-            away_flag_code: FLAG_CODES[a.oa] || null,
-            match_date: newDate,
-          }).eq('id', o.id)
+      // Primero respetar anclajes existentes (api_match_id); el resto se empareja por fecha.
+      const usedApi = new Set<number>()
+      const pairs: Array<{ o: any; a: any }> = []
+      const ourUnanchored: any[] = []
+      for (const o of ourList) {
+        const aid = o.api_match_id != null ? Number(o.api_match_id) : null
+        const a = aid != null ? apiList.find(x => x.apiId === aid) : null
+        if (a) { pairs.push({ o, a }); usedApi.add(a.apiId) }
+        else ourUnanchored.push(o)
+      }
+      const freeApi = apiList.filter(a => !usedApi.has(a.apiId))
+      ourUnanchored.sort((x, y) => new Date(x.match_date).getTime() - new Date(y.match_date).getTime())
+      for (let i = 0; i < ourUnanchored.length && i < freeApi.length; i++) {
+        pairs.push({ o: ourUnanchored[i], a: freeApi[i] })
+      }
+
+      for (const { o, a } of pairs) {
+        const upd: any = {}
+        if (o.api_match_id == null) upd.api_match_id = a.apiId
+        if (o.status !== 'finished') {
+          const newDate = new Date(a.date).toISOString()
+          if (!o.match_date || new Date(o.match_date).toISOString() !== newDate) upd.match_date = newDate
+          if (a.oh && a.oa && (norm(o.home_team) !== norm(a.oh) || norm(o.away_team) !== norm(a.oa))) {
+            upd.home_team = a.oh
+            upd.away_team = a.oa
+            upd.home_flag_code = FLAG_CODES[a.oh] || null
+            upd.away_flag_code = FLAG_CODES[a.oa] || null
+          }
+        }
+        if (Object.keys(upd).length > 0) {
+          await supabase.from('matches').update(upd).eq('id', o.id)
           results.knockout_filled++
         }
       }
