@@ -92,8 +92,14 @@ function mapStage(stage: string): string {
 // (HOME_TEAM / AWAY_TEAM) incluso si se definio por penales. Si nuestro registro
 // tiene los equipos invertidos, el ganador tambien se invierte.
 function koWinnerFrom(am: any, swapped: boolean): string | null {
-  const w = am.score?.winner
+  const s = am.score
+  const w = s?.winner
   let r: string | null = w === 'HOME_TEAM' ? 'home' : w === 'AWAY_TEAM' ? 'away' : null
+  // Penales: si el reglamentario quedo empatado, el que avanza es quien gana la tanda.
+  if (!r && s?.penalties && s.penalties.home != null && s.penalties.away != null) {
+    if (s.penalties.home > s.penalties.away) r = 'home'
+    else if (s.penalties.away > s.penalties.home) r = 'away'
+  }
   if (swapped && r) r = r === 'home' ? 'away' : 'home'
   return r
 }
@@ -166,7 +172,7 @@ export async function GET(req: NextRequest) {
     // Traer nuestros partidos una sola vez e indexar por fase + equipos normalizados.
     const { data: ours, error } = await supabase
       .from('matches')
-      .select('id, phase, home_team, away_team, status, home_score, away_score, match_date, api_match_id')
+      .select('id, phase, home_team, away_team, status, home_score, away_score, match_date, api_match_id, winner')
     if (error) {
       results.errors.push(error.message)
       return NextResponse.json({ ok: true, timestamp: new Date().toISOString(), ...results })
@@ -202,10 +208,12 @@ export async function GET(req: NextRequest) {
       }
 
       if (m) {
+        const newWinner = phase !== 'groups' ? koWinnerFrom(am, swapped) : null
         const changed = m.home_score !== homeScore || m.away_score !== awayScore
-        if (m.status !== 'finished' || changed) {
+        const winnerChanged = newWinner !== null && newWinner !== m.winner
+        if (m.status !== 'finished' || changed || winnerChanged) {
           const upd: any = { home_score: homeScore, away_score: awayScore, status: 'finished' }
-          if (phase !== 'groups') upd.winner = koWinnerFrom(am, swapped)
+          if (phase !== 'groups') upd.winner = newWinner
           await supabase.from('matches').update(upd).eq('id', m.id)
           results.updated++
         }
